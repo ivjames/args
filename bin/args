@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# args — operate CLI for the Argument Analyzer (args.lab980.com).
+# Symlink to /usr/local/bin/args on the droplet:
+#   ln -s /var/www/args/bin/args /usr/local/bin/args
+set -euo pipefail
+
+DIR="/var/www/args"
+APP="argument-analyzer"
+
+usage() {
+  cat <<'USAGE'
+args — operate the Argument Analyzer (args.lab980.com)
+
+Usage:
+  args redeploy   git pull -> pip install -> pm2 restart
+  args restart    pm2 restart only
+  args logs       tail pm2 logs
+  args status     pm2 status for this app
+USAGE
+}
+
+case "${1:-}" in
+  redeploy)
+    cd "$DIR"
+    git pull
+    venv/bin/pip install -q -r requirements.txt
+    pm2 restart "$APP" --update-env
+    pm2 save
+    ;;
+  restart)
+    pm2 restart "$APP" --update-env
+    ;;
+  logs)
+    pm2 logs "$APP"
+    ;;
+  status)
+    pm2 describe "$APP"
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

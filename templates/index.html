@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Argument Analyzer</title>
+  <meta name="description" content="Paste two arguments. Get a neutral, blunt analysis of the logic in each — fallacies, weak premises, and how to strengthen them.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Lora:ital,wght@0,400;0,600;1,400&family=Courier+Prime&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --paper: #f5f0e8;
+      --panel: #ede8dc;
+      --ink: #2c2416;
+      --rule: #b8a88a;
+      --red-pen: #8b2e2e;
+      --green-pen: #2e5e2e;
+      --border: #c9bda8;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Lora', Georgia, serif;
+      line-height: 1.6;
+      min-height: 100vh;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+
+    .sheet {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      border-bottom: 3px double var(--rule);
+      padding-bottom: 1.5rem;
+    }
+
+    h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 2.4rem;
+      letter-spacing: 0.02em;
+    }
+
+    .tagline {
+      font-style: italic;
+      color: #6b5d45;
+      margin-top: 0.4rem;
+      font-size: 1.02rem;
+    }
+
+    .inputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 680px) {
+      .inputs { grid-template-columns: 1fr; }
+      h1 { font-size: 1.9rem; }
+    }
+
+    .arg-field label {
+      display: block;
+      font-variant: small-caps;
+      letter-spacing: 0.14em;
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 0.45rem;
+      color: #5a4c34;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      resize: vertical;
+      padding: 0.9rem 1rem;
+      border: 1px solid var(--border);
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          var(--panel),
+          var(--panel) 27px,
+          rgba(184, 168, 138, 0.45) 27px,
+          rgba(184, 168, 138, 0.45) 28px
+        );
+      color: var(--ink);
+      font-family: 'Lora', Georgia, serif;
+      font-size: 1rem;
+      line-height: 28px;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #a08a5f;
+    }
+
+    .actions {
+      text-align: center;
+      margin: 2rem 0;
+    }
+
+    button {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.05rem;
+      letter-spacing: 0.08em;
+      padding: 0.6rem 2.4rem;
+      background: var(--panel);
+      color: var(--ink);
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) {
+      background: #e4dccb;
+      border-color: #a08a5f;
+    }
+
+    button:disabled {
+      color: #8a7c60;
+      cursor: wait;
+      font-style: italic;
+    }
+
+    .form-error {
+      color: var(--red-pen);
+      text-align: center;
+      font-style: italic;
+      margin-top: 0.75rem;
+      min-height: 1.4em;
+    }
+
+    #output {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 2rem 2.25rem;
+      display: none;
+    }
+
+    #output.visible { display: block; }
+
+    /* Rendered analysis */
+    #output h2 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.5rem;
+      margin: 2.2rem 0 0.9rem;
+      position: relative;
+      padding-top: 1.6rem;
+      border-top: 1px solid var(--rule);
+    }
+
+    #output h2::before {
+      content: '§';
+      position: absolute;
+      top: -0.85em;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--panel);
+      padding: 0 0.7rem;
+      color: var(--rule);
+      font-size: 1.05rem;
+      font-family: 'Playfair Display', Georgia, serif;
+    }
+
+    #output h2:first-child {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
+    }
+
+    #output h2:first-child::before { content: none; }
+
+    #output h3 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.08rem;
+      font-variant: small-caps;
+      letter-spacing: 0.08em;
+      margin: 1.4rem 0 0.4rem;
+      color: #5a4c34;
+    }
+
+    #output p, #output li { margin-bottom: 0.6rem; }
+    #output ul, #output ol { padding-left: 1.4rem; }
+
+    #output strong { color: var(--red-pen); }
+    #output em { color: var(--green-pen); }
+
+    #output blockquote,
+    #output code {
+      font-family: 'Courier Prime', 'Courier New', monospace;
+      color: var(--red-pen);
+    }
+
+    #output blockquote {
+      border-left: 2px solid var(--red-pen);
+      padding-left: 0.9rem;
+      margin: 0.6rem 0;
+    }
+
+    #output code {
+      background: rgba(139, 46, 46, 0.06);
+      padding: 0 0.25em;
+      font-size: 0.95em;
+    }
+
+    .stream-error { color: var(--red-pen); font-style: italic; }
+
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      font-size: 0.85rem;
+      color: #8a7c60;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <header>
+      <h1>Argument Analyzer</h1>
+      <p class="tagline">Two arguments enter. Both get marked up in red pen.</p>
+    </header>
+
+    <div class="inputs">
+      <div class="arg-field">
+        <label for="arg-a">Argument A</label>
+        <textarea id="arg-a" maxlength="8000" placeholder="Paste the first argument here…"></textarea>
+      </div>
+      <div class="arg-field">
+        <label for="arg-b">Argument B</label>
+        <textarea id="arg-b" maxlength="8000" placeholder="Paste the second argument here…"></textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="analyze-btn">Analyze</button>
+      <p class="form-error" id="form-error"></p>
+    </div>
+
+    <div id="output"></div>
+
+    <footer>No side is favored. The logic is what it is.</footer>
+  </div>
+
+  <script>
+    const btn = document.getElementById('analyze-btn');
+    const outputEl = document.getElementById('output');
+    const formError = document.getElementById('form-error');
+
+    btn.addEventListener('click', analyze);
+
+    async function analyze() {
+      const argA = document.getElementById('arg-a').value.trim();
+      const argB = document.getElementById('arg-b').value.trim();
+
+      formError.textContent = '';
+      if (!argA || !argB) {
+        formError.textContent = 'Both arguments are required.';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Analyzing…';
+      outputEl.innerHTML = '';
+      outputEl.classList.add('visible');
+
+      let outputBuffer = '';
+
+      try {
+        const response = await fetch('/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ argument_a: argA, argument_b: argB })
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || `Request failed (${response.status})`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            try {
+              const chunk = JSON.parse(data);
+              if (typeof chunk === 'object' && chunk !== null && chunk.error) {
+                throw new Error(chunk.error);
+              }
+              outputBuffer += chunk;
+              outputEl.innerHTML = marked.parse(outputBuffer);
+            } catch (e) {
+              if (e instanceof SyntaxError) continue; // partial/garbled frame
+              throw e;
+            }
+          }
+        }
+
+        if (!outputBuffer) {
+          outputEl.innerHTML = '<p class="stream-error">No analysis was returned. Please try again.</p>';
+        }
+      } catch (e) {
+        outputEl.innerHTML += `<p class="stream-error">${escapeHtml(e.message)}</p>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Analyze';
+      }
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

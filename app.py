@@ -157,7 +157,7 @@ Very few words. This is red-pen markup, not an essay. These limits are hard:
 - No preamble, no sign-off, no restating the argument. Start at the first heading.
 - Advise, don't author. Never produce copy-paste-ready argument or reply text a reader could drop straight into a debate. Name the points and moves to make; do not write the finished words for them.
 - Analysis subheadings: at most 2 bullets each, every bullet 15 words or fewer. Name the fallacy and quote only the offending phrase; skip the "why" unless it isn't obvious.
-- Nothing real under a subheading? Write "None." Never pad a section to fill it.
+- Nothing real for a heading? Omit that heading entirely — no empty headers, no "None," no section break for a section you're dropping. Only emit a heading that has content under it. Never pad a section to fill it.
 - Head-to-Head is one sentence. Every advisory section is at most 3 short points, one line each.
 - No hedging, no filler, no "it's worth noting." If a word can be cut, cut it."""
 

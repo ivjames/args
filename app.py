@@ -59,7 +59,7 @@ def analyze():
         try:
             with client.messages.stream(
                 model="claude-sonnet-5",
-                max_tokens=1500,
+                max_tokens=4000,
                 system=SYSTEM_PROMPT,
                 messages=[{
                     "role": "user",
@@ -68,6 +68,9 @@ def analyze():
             ) as stream:
                 for text in stream.text_stream:
                     yield f"data: {json.dumps(text)}\n\n"
+                if stream.get_final_message().stop_reason == "max_tokens":
+                    notice = "\n\n---\n\n*Analysis truncated at the length limit.*"
+                    yield f"data: {json.dumps(notice)}\n\n"
         except Exception:
             yield f"data: {json.dumps({'error': 'Analysis failed. Please try again.'})}\n\n"
         yield "data: [DONE]\n\n"

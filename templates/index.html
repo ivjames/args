@@ -4,20 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Argument Analyzer</title>
-  <meta name="description" content="Paste two arguments. Get a neutral, blunt analysis of the logic in each — fallacies, weak premises, and how to strengthen them.">
+  <meta name="description" content="Paste one argument or two. Get a neutral, blunt analysis of the logic — fallacies, weak premises, rewrites that argue it better.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Lora:ital,wght@0,400;0,600;1,400&family=Courier+Prime&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     :root {
-      --paper: #f5f0e8;
-      --panel: #ede8dc;
-      --ink: #2c2416;
-      --rule: #b8a88a;
-      --red-pen: #8b2e2e;
-      --green-pen: #2e5e2e;
-      --border: #c9bda8;
+      --paper: #f3ecdd;
+      --panel: #eadfc8;
+      --ink: #1f1709;
+      --ink-soft: #4c3b1e;
+      --ink-faint: #6f5c39;
+      --rule: #a8916a;
+      --red-pen: #a01d1d;
+      --green-pen: #1c6b2a;
+      --border: #b3a17f;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -52,9 +54,25 @@
 
     .tagline {
       font-style: italic;
-      color: #6b5d45;
+      color: var(--ink-soft);
       margin-top: 0.4rem;
       font-size: 1.02rem;
+    }
+
+    .intro {
+      max-width: 620px;
+      margin: 1rem auto 0;
+      font-size: 0.97rem;
+      color: var(--ink-soft);
+      line-height: 1.55;
+    }
+
+    .optional-note {
+      font-variant: normal;
+      letter-spacing: normal;
+      font-weight: 400;
+      font-style: italic;
+      color: var(--ink-faint);
     }
 
     .inputs {
@@ -75,23 +93,24 @@
       font-weight: 600;
       font-size: 0.95rem;
       margin-bottom: 0.45rem;
-      color: #5a4c34;
+      color: var(--ink-soft);
     }
 
     textarea {
       width: 100%;
-      min-height: 220px;
+      min-height: 224px;
       resize: vertical;
-      padding: 0.9rem 1rem;
+      padding: 28px 1rem 28px;
       border: 1px solid var(--border);
       background:
         repeating-linear-gradient(
           to bottom,
           var(--panel),
           var(--panel) 27px,
-          rgba(184, 168, 138, 0.45) 27px,
-          rgba(184, 168, 138, 0.45) 28px
+          rgba(168, 145, 106, 0.6) 27px,
+          rgba(168, 145, 106, 0.6) 28px
         );
+      background-attachment: local;
       color: var(--ink);
       font-family: 'Lora', Georgia, serif;
       font-size: 1rem;
@@ -100,7 +119,7 @@
 
     textarea:focus {
       outline: none;
-      border-color: #a08a5f;
+      border-color: #8a713f;
     }
 
     .actions {
@@ -120,12 +139,12 @@
     }
 
     button:hover:not(:disabled) {
-      background: #e4dccb;
-      border-color: #a08a5f;
+      background: #e0d2ae;
+      border-color: #8a713f;
     }
 
     button:disabled {
-      color: #8a7c60;
+      color: var(--ink-faint);
       cursor: wait;
       font-style: italic;
     }
@@ -184,7 +203,7 @@
       font-variant: small-caps;
       letter-spacing: 0.08em;
       margin: 1.4rem 0 0.4rem;
-      color: #5a4c34;
+      color: var(--ink-soft);
     }
 
     #output p, #output li { margin-bottom: 0.6rem; }
@@ -206,7 +225,7 @@
     }
 
     #output code {
-      background: rgba(139, 46, 46, 0.06);
+      background: rgba(160, 29, 29, 0.08);
       padding: 0 0.25em;
       font-size: 0.95em;
     }
@@ -217,7 +236,7 @@
       text-align: center;
       margin-top: 3rem;
       font-size: 0.85rem;
-      color: #8a7c60;
+      color: var(--ink-faint);
       font-style: italic;
     }
   </style>
@@ -226,7 +245,13 @@
   <div class="sheet">
     <header>
       <h1>Argument Analyzer</h1>
-      <p class="tagline">Two arguments enter. Both get marked up in red pen.</p>
+      <p class="tagline">Arguments enter. They get marked up in red pen.</p>
+      <p class="intro">
+        Paste in an argument — yours, theirs, a pundit's — and get a straight answer about how
+        well it actually holds up: the fallacies by name, the claims resting on nothing, the one
+        point that survives, and rewrites that argue it better. Add a second argument and the two
+        go head-to-head, with rewrite options for side B. Nobody wins; the logic just gets graded.
+      </p>
     </header>
 
     <div class="inputs">
@@ -235,8 +260,8 @@
         <textarea id="arg-a" maxlength="8000" placeholder="Paste the first argument here…"></textarea>
       </div>
       <div class="arg-field">
-        <label for="arg-b">Argument B</label>
-        <textarea id="arg-b" maxlength="8000" placeholder="Paste the second argument here…"></textarea>
+        <label for="arg-b">Argument B <span class="optional-note">(optional)</span></label>
+        <textarea id="arg-b" maxlength="8000" placeholder="Optional — add an opposing argument for a head-to-head…"></textarea>
       </div>
     </div>
 
@@ -262,8 +287,8 @@
       const argB = document.getElementById('arg-b').value.trim();
 
       formError.textContent = '';
-      if (!argA || !argB) {
-        formError.textContent = 'Both arguments are required.';
+      if (!argA) {
+        formError.textContent = 'Argument A is required.';
         return;
       }
 

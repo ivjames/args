@@ -82,6 +82,14 @@ with a `KeyError`.
   to the nginx block above is required so the limiter sees the real client IP
   instead of `127.0.0.1`; `ProxyFix` in the app reads it. Confirm after deploy
   that limits key per-visitor, not globally.
+  - Note: the limiter's in-memory store is **unrelated** to the analyses SQLite
+    DB above. Flask-Limiter stores counters via the `limits` library, which only
+    supports memory / redis / valkey / memcached / mongodb — there is no SQLite
+    backend, so the DB file can't serve as its store. In-memory is the right
+    choice for this single-worker deployment. To make limits survive restarts or
+    span multiple workers, point `storage_uri` at a Redis/valkey instance (a new
+    service to run) or replace Flask-Limiter with a hand-rolled check against the
+    existing SQLite DB. Neither is worth it at current scale.
 
 ## 4. Operate CLI
 

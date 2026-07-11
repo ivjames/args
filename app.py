@@ -19,6 +19,21 @@ client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 PORT = int(os.environ.get("PORT", "3004"))
 MAX_ARG_CHARS = 8000  # bounds token spend per request
+MODEL = "claude-sonnet-5"
+
+# claude-sonnet-5 price per million tokens. Intro rates ($2 in / $10 out) apply
+# through 2026-08-31; standard rates are $3 / $15. Override via env after the
+# intro window ends or if pricing changes.
+PRICE_IN_PER_MTOK = float(os.environ.get("PRICE_IN_PER_MTOK", "2.0"))
+PRICE_OUT_PER_MTOK = float(os.environ.get("PRICE_OUT_PER_MTOK", "10.0"))
+PRICES = {"in": PRICE_IN_PER_MTOK, "out": PRICE_OUT_PER_MTOK}
+
+
+def cost(input_tokens, output_tokens):
+    """Return (input_cost, output_cost, total_cost) in dollars."""
+    ci = input_tokens / 1_000_000 * PRICE_IN_PER_MTOK
+    co = output_tokens / 1_000_000 * PRICE_OUT_PER_MTOK
+    return ci, co, ci + co
 
 # ── Rate limiting ──────────────────────────────────────────
 # Per-IP caps on /analyze so a single client can't run up the API bill.
@@ -52,6 +67,19 @@ def init_db():
                 created_at  TEXT NOT NULL DEFAULT (datetime('now'))
             )"""
         )
+        db.execute(
+            """CREATE TABLE IF NOT EXISTS usage_stats (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                slug           TEXT,
+                mode           TEXT NOT NULL,
+                input_tokens   INTEGER NOT NULL,
+                output_tokens  INTEGER NOT NULL,
+                input_cost     REAL NOT NULL,
+                output_cost    REAL NOT NULL,
+                total_cost     REAL NOT NULL,
+                created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+            )"""
+        )
 
 
 def save_analysis(mode, arg_a, arg_b, analysis):
@@ -78,6 +106,47 @@ def get_analysis(slug):
     return dict(row) if row else None
 
 
+def record_stats(slug, mode, in_tok, out_tok, ci, co, ct):
+    with sqlite3.connect(DB_PATH) as db:
+        db.execute(
+            "INSERT INTO usage_stats"
+            " (slug, mode, input_tokens, output_tokens, input_cost, output_cost, total_cost)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (slug, mode, in_tok, out_tok, ci, co, ct),
+        )
+
+
+def stats_for_slug(slug):
+    with sqlite3.connect(DB_PATH) as db:
+        db.row_factory = sqlite3.Row
+        row = db.execute(
+            "SELECT input_tokens, output_tokens, input_cost, output_cost, total_cost"
+            " FROM usage_stats WHERE slug = ? ORDER BY id DESC LIMIT 1",
+            (slug,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def aggregate_stats():
+    with sqlite3.connect(DB_PATH) as db:
+        db.row_factory = sqlite3.Row
+        totals = db.execute(
+            "SELECT COUNT(*) AS analyses,"
+            " COALESCE(SUM(input_tokens), 0) AS input_tokens,"
+            " COALESCE(SUM(output_tokens), 0) AS output_tokens,"
+            " COALESCE(SUM(total_cost), 0) AS total_cost"
+            " FROM usage_stats"
+        ).fetchone()
+        by_mode = db.execute(
+            "SELECT mode, COUNT(*) AS analyses, COALESCE(SUM(total_cost), 0) AS total_cost"
+            " FROM usage_stats GROUP BY mode"
+        ).fetchall()
+    out = dict(totals)
+    out["total_cost"] = round(out["total_cost"], 6)
+    out["by_mode"] = {r["mode"]: {"analyses": r["analyses"], "total_cost": round(r["total_cost"], 6)} for r in by_mode}
+    return out
+
+
 init_db()
 
 GUARDRAILS = """
@@ -100,20 +169,17 @@ For each argument, identify:
 1. Logical fallacies (name each fallacy, quote the offending phrase, explain why it's a fallacy)
 2. Weak or unsupported premises (what is asserted without evidence)
 3. Strongest point (what actually holds up)
-4. How to strengthen it (concrete suggestion, not a softening)
 
 Format your response in clean sections using markdown:
 ## Argument A Analysis
 ### Fallacies
 ### Weak Premises
 ### Strongest Point
-### How to Strengthen
 
 ## Argument B Analysis
 ### Fallacies
 ### Weak Premises
 ### Strongest Point
-### How to Strengthen
 
 ## Head-to-Head
 One sentence: which argument has fewer structural weaknesses, and why. No winner declared.
@@ -151,7 +217,7 @@ Be blunt. Do not soften critiques. Do not validate the argument merely because i
 
 @app.route("/")
 def index():
-    return render_template("index.html", shared=None)
+    return render_template("index.html", shared=None, prices=PRICES)
 
 
 @app.route("/a/<slug>")
@@ -159,7 +225,14 @@ def shared(slug):
     row = get_analysis(slug)
     if not row:
         abort(404)
-    return render_template("index.html", shared=row)
+    row = dict(row)
+    row["usage"] = stats_for_slug(slug)
+    return render_template("index.html", shared=row, prices=PRICES)
+
+
+@app.route("/stats")
+def stats():
+    return aggregate_stats()
 
 
 @app.route("/analyze", methods=["POST"])
@@ -183,20 +256,35 @@ def analyze():
         system = SYSTEM_PROMPT_SINGLE
         content = f"ARGUMENT:\n{arg_a}"
 
+    messages = [{"role": "user", "content": content}]
+
     def generate():
         chunks = []
         errored = False
+        final = None
+
+        # Pre-flight input estimate (accurate token count incl. system prompt).
+        try:
+            est_in = client.messages.count_tokens(
+                model=MODEL, system=system, messages=messages
+            ).input_tokens
+            ci_est, _, _ = cost(est_in, 0)
+            yield f"data: {json.dumps({'input_estimate': {'tokens': est_in, 'cost': round(ci_est, 6)}})}\n\n"
+        except Exception:
+            pass
+
         try:
             with client.messages.stream(
-                model="claude-sonnet-5",
+                model=MODEL,
                 max_tokens=4000,
                 system=system,
-                messages=[{"role": "user", "content": content}],
+                messages=messages,
             ) as stream:
                 for text in stream.text_stream:
                     chunks.append(text)
                     yield f"data: {json.dumps(text)}\n\n"
-                if stream.get_final_message().stop_reason == "max_tokens":
+                final = stream.get_final_message()
+                if final.stop_reason == "max_tokens":
                     notice = "\n\n---\n\n*Analysis truncated at the length limit.*"
                     chunks.append(notice)
                     yield f"data: {json.dumps(notice)}\n\n"
@@ -205,7 +293,16 @@ def analyze():
             yield f"data: {json.dumps({'error': 'Analysis failed. Please try again.'})}\n\n"
 
         if not errored and chunks:
-            slug = save_analysis(mode, arg_a, arg_b, "".join(chunks))
+            in_tok = getattr(getattr(final, "usage", None), "input_tokens", 0) or 0
+            out_tok = getattr(getattr(final, "usage", None), "output_tokens", 0) or 0
+            ci, co, ct = cost(in_tok, out_tok)
+            slug = None
+            try:
+                slug = save_analysis(mode, arg_a, arg_b, "".join(chunks))
+                record_stats(slug, mode, in_tok, out_tok, ci, co, ct)
+            except Exception:
+                pass
+            yield f"data: {json.dumps({'usage': {'input_tokens': in_tok, 'output_tokens': out_tok, 'input_cost': round(ci, 6), 'output_cost': round(co, 6), 'total_cost': round(ct, 6)}})}\n\n"
             if slug:
                 yield f"data: {json.dumps({'slug': slug})}\n\n"
         yield "data: [DONE]\n\n"

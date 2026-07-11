@@ -91,6 +91,24 @@ with a `KeyError`.
     service to run) or replace Flask-Limiter with a hand-rolled check against the
     existing SQLite DB. Neither is worth it at current scale.
 
+### Cost tracking
+
+- Every analysis records token usage and cost to the `usage_stats` table in the
+  same `data/analyses.db` (linked to the analysis by `slug`). Input tokens are
+  counted pre-flight via the Anthropic `count_tokens` endpoint and shown live on
+  the page; the actual input/output token counts come from the streamed message's
+  `usage` and replace the estimate on completion. The page also shows a rough
+  live output estimate while streaming.
+- **Pricing** is set by two env vars, defaulting to claude-sonnet-5's **intro**
+  rate (`$2` in / `$10` out per million tokens, in effect through **2026-08-31**):
+  `PRICE_IN_PER_MTOK` and `PRICE_OUT_PER_MTOK`. When the intro window ends, set
+  them to the standard `3.0` / `15.0` in the pm2 env (or `/etc/environment`) and
+  `args restart` — otherwise reported costs will understate actual spend.
+- `GET /stats` returns aggregate JSON (analysis count, total tokens, total cost,
+  and a per-mode breakdown). It's **unauthenticated** — if you don't want site
+  usage/cost public, restrict it in nginx (e.g. `location = /stats { deny all; }`
+  or an `auth_basic`). No per-analysis content is exposed, only totals.
+
 ## 4. Operate CLI
 
 ```bash

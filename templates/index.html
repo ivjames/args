@@ -258,6 +258,30 @@
       padding: 0.15rem 0.7rem;
     }
 
+    .meter {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 1.4rem;
+      margin: 1.25rem 0 0;
+      padding: 0.6rem 0.9rem;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      font-family: 'Courier Prime', 'Courier New', monospace;
+      font-size: 0.85rem;
+      color: var(--ink-soft);
+    }
+
+    .meter[hidden] { display: none; }
+    .meter-label {
+      font-variant: small-caps;
+      letter-spacing: 0.1em;
+      color: var(--ink-faint);
+      margin-right: 0.35rem;
+    }
+    .meter-val { color: var(--ink); }
+    .meter.pending .meter-val { color: var(--ink-faint); }
+
     footer {
       text-align: center;
       margin-top: 3rem;
@@ -275,10 +299,11 @@
       <p class="intro">
         Paste in an argument — yours, theirs, a pundit's — and get a straight answer about how
         well it actually holds up: the fallacies by name, the claims resting on nothing, the one
-        point that survives, plus the points to press if you want to argue back. Add a second argument
-        and the two go head-to-head — with the strongest case for the first and the moves the second
-        should make to shore itself up. Nobody wins, and nothing here is written for you to paste into
-        a debate; the logic just gets graded and you get told what to do about it.
+        point that survives, plus the points to press if you want to argue back. Add a second
+        argument and the two go head-to-head — with the strongest case for the first and the moves
+        the second should make to shore itself up. Nobody wins, and nothing here is written for you
+        to paste into a debate; the logic just gets graded and you get told what to do about it —
+        with the token count and cost shown as it runs.
       </p>
     </header>
 
@@ -298,6 +323,12 @@
       <p class="form-error" id="form-error"></p>
     </div>
 
+    <div class="meter pending" id="meter" hidden>
+      <span class="meter-item"><span class="meter-label">Input</span><span class="meter-val" id="m-in">—</span></span>
+      <span class="meter-item"><span class="meter-label">Output</span><span class="meter-val" id="m-out">—</span></span>
+      <span class="meter-item"><span class="meter-label">Cost</span><span class="meter-val" id="m-cost">—</span></span>
+    </div>
+
     <div id="output"></div>
 
     <div class="share" id="share" hidden>
@@ -309,7 +340,10 @@
     <footer>No side is favored. The logic is what it is.</footer>
   </div>
 
-  <script>window.__SHARED__ = {{ shared|tojson }};</script>
+  <script>
+    window.__SHARED__ = {{ shared|tojson }};
+    window.__PRICES__ = {{ prices|tojson }};
+  </script>
   <script>
     const btn = document.getElementById('analyze-btn');
     const outputEl = document.getElementById('output');
@@ -317,6 +351,37 @@
     const shareEl = document.getElementById('share');
     const shareLink = document.getElementById('share-link');
     const copyBtn = document.getElementById('copy-link');
+    const meterEl = document.getElementById('meter');
+    const mIn = document.getElementById('m-in');
+    const mOut = document.getElementById('m-out');
+    const mCost = document.getElementById('m-cost');
+    const PRICES = window.__PRICES__ || { in: 0, out: 0 };
+
+    // ── Cost meter ──────────────────────────────────────────
+    let estIn = 0, actualIn = null, estOut = 0, actualOut = null;
+
+    function costOf(inTok, outTok) {
+      return inTok / 1e6 * PRICES.in + outTok / 1e6 * PRICES.out;
+    }
+    const fmtTok = (n, est) => (est ? '~' : '') + Number(n).toLocaleString() + ' tok';
+    const fmtCost = (c, est) => (est ? '~' : '') + '$' + c.toFixed(4);
+
+    function resetMeter() {
+      estIn = 0; actualIn = null; estOut = 0; actualOut = null;
+      meterEl.hidden = true;
+    }
+
+    function renderMeter() {
+      const inTok = actualIn ?? estIn;
+      const outTok = actualOut ?? estOut;
+      const pending = actualOut === null;   // still streaming / not finalized
+      mIn.textContent = (actualIn !== null) ? fmtTok(actualIn, false)
+        : (estIn > 0 ? fmtTok(estIn, true) : '…');
+      mOut.textContent = fmtTok(outTok, actualOut === null);
+      mCost.textContent = fmtCost(costOf(inTok, outTok), pending);
+      meterEl.classList.toggle('pending', pending);
+      meterEl.hidden = false;
+    }
 
     btn.addEventListener('click', analyze);
 
@@ -350,6 +415,7 @@
       outputEl.innerHTML = '';
       outputEl.classList.add('visible');
       shareEl.hidden = true;
+      resetMeter();
 
       let outputBuffer = '';
 
@@ -384,9 +450,22 @@
               if (typeof chunk === 'object' && chunk !== null) {
                 if (chunk.error) throw new Error(chunk.error);
                 if (chunk.slug) { showShare(chunk.slug, true); continue; }
+                if (chunk.input_estimate) {
+                  estIn = chunk.input_estimate.tokens;
+                  renderMeter();
+                  continue;
+                }
+                if (chunk.usage) {
+                  actualIn = chunk.usage.input_tokens;
+                  actualOut = chunk.usage.output_tokens;
+                  renderMeter();
+                  continue;
+                }
               }
               outputBuffer += chunk;
               outputEl.innerHTML = marked.parse(outputBuffer);
+              estOut = Math.ceil(outputBuffer.length / 4);  // rough live estimate
+              renderMeter();
             } catch (e) {
               if (e instanceof SyntaxError) continue; // partial/garbled frame
               throw e;
@@ -419,6 +498,11 @@
       outputEl.innerHTML = marked.parse(s.analysis || '');
       outputEl.classList.add('visible');
       showShare(s.slug, false);
+      if (s.usage) {
+        actualIn = s.usage.input_tokens;
+        actualOut = s.usage.output_tokens;
+        renderMeter();
+      }
     }
   </script>
 </body>

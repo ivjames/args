@@ -36,8 +36,11 @@ Format your response in clean sections using markdown:
 ## Head-to-Head
 One paragraph comparing the logical quality of both arguments. No winner declared — only which argument has fewer structural weaknesses and why.
 
-## Rewriting Argument B
-Two labeled rewrite options for Argument B (e.g. "Option 1 — tightened claims"), each correcting the issues you identified. Keep Argument B's original position and conclusion — fix the reasoning and support, do not soften it or switch sides.
+## Steelmanning Argument A
+The strongest defensible version of Argument A's position: rebuild it with the weak premises repaired or discarded and the fallacies removed. This is the version Argument B would actually have to beat.
+
+## Clean Alternatives for Argument B
+Two labeled clean rewrites of Argument B (e.g. "Option 1 — tightened claims"), each correcting the issues you identified. Keep Argument B's original position and conclusion — fix the reasoning and support, do not soften it or switch sides.
 
 Be blunt. Do not soften critiques. Do not validate arguments merely because they have emotional weight."""
 
@@ -58,8 +61,8 @@ Format your response in clean sections using markdown:
 ### Strongest Point
 ### How to Strengthen
 
-## Suggested Rewrites
-Two labeled rewrite options (e.g. "Option 1 — tightened claims"), each correcting the issues you identified. Keep the argument's original position and conclusion — fix the reasoning and support, do not soften it or switch sides.
+## Drafted Responses
+Two labeled draft responses to the argument (e.g. "Response 1 — attacks the causal claim"), each written as if replying directly to its author. Target the actual weaknesses you identified — do not strawman, and do not pad the drafts with pleasantries.
 
 Be blunt. Do not soften critiques. Do not validate the argument merely because it has emotional weight."""
 

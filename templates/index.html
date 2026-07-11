@@ -232,6 +232,32 @@
 
     .stream-error { color: var(--red-pen); font-style: italic; }
 
+    .share {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: var(--ink-soft);
+    }
+
+    .share[hidden] { display: none; }
+
+    .share a {
+      color: var(--red-pen);
+      text-decoration: none;
+      word-break: break-all;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .share button {
+      font-family: 'Lora', Georgia, serif;
+      font-size: 0.82rem;
+      letter-spacing: normal;
+      padding: 0.15rem 0.7rem;
+    }
+
     footer {
       text-align: center;
       margin-top: 3rem;
@@ -273,15 +299,40 @@
 
     <div id="output"></div>
 
+    <div class="share" id="share" hidden>
+      <span>Permalink:</span>
+      <a id="share-link" href="#"></a>
+      <button type="button" id="copy-link">Copy</button>
+    </div>
+
     <footer>No side is favored. The logic is what it is.</footer>
   </div>
 
+  <script>window.__SHARED__ = {{ shared|tojson }};</script>
   <script>
     const btn = document.getElementById('analyze-btn');
     const outputEl = document.getElementById('output');
     const formError = document.getElementById('form-error');
+    const shareEl = document.getElementById('share');
+    const shareLink = document.getElementById('share-link');
+    const copyBtn = document.getElementById('copy-link');
 
     btn.addEventListener('click', analyze);
+
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(shareLink.href).then(() => {
+        copyBtn.textContent = 'Copied';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+      }).catch(() => {});
+    });
+
+    function showShare(slug, updateUrl) {
+      const url = location.origin + '/a/' + slug;
+      shareLink.href = url;
+      shareLink.textContent = url;
+      shareEl.hidden = false;
+      if (updateUrl) history.replaceState(null, '', '/a/' + slug);
+    }
 
     async function analyze() {
       const argA = document.getElementById('arg-a').value.trim();
@@ -297,6 +348,7 @@
       btn.textContent = 'Analyzing…';
       outputEl.innerHTML = '';
       outputEl.classList.add('visible');
+      shareEl.hidden = true;
 
       let outputBuffer = '';
 
@@ -328,8 +380,9 @@
             if (data === '[DONE]') continue;
             try {
               const chunk = JSON.parse(data);
-              if (typeof chunk === 'object' && chunk !== null && chunk.error) {
-                throw new Error(chunk.error);
+              if (typeof chunk === 'object' && chunk !== null) {
+                if (chunk.error) throw new Error(chunk.error);
+                if (chunk.slug) { showShare(chunk.slug, true); continue; }
               }
               outputBuffer += chunk;
               outputEl.innerHTML = marked.parse(outputBuffer);
@@ -355,6 +408,16 @@
       const div = document.createElement('div');
       div.textContent = s;
       return div.innerHTML;
+    }
+
+    // Rehydrate a shared /a/<slug> permalink.
+    if (window.__SHARED__) {
+      const s = window.__SHARED__;
+      document.getElementById('arg-a').value = s.argument_a || '';
+      document.getElementById('arg-b').value = s.argument_b || '';
+      outputEl.innerHTML = marked.parse(s.analysis || '');
+      outputEl.classList.add('visible');
+      showShare(s.slug, false);
     }
   </script>
 </body>

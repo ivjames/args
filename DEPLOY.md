@@ -28,6 +28,7 @@ server {
         proxy_pass http://127.0.0.1:3004;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 
         # SSE-specific
         proxy_buffering off;
@@ -68,6 +69,19 @@ Notes on the gunicorn flags:
 `ANTHROPIC_API_KEY` is already in `/etc/environment` on the droplet; gunicorn
 inherits it via pm2. If it were ever missing, the app fails fast at import time
 with a `KeyError`.
+
+### Persistence & rate limiting (Phase 2)
+
+- Analyses are saved to **SQLite** at `/var/www/args/data/analyses.db` (created
+  automatically on first run; the `data/` dir is git-ignored). Each analysis gets
+  a short slug served back at `https://args.lab980.com/a/<slug>`. Back it up with
+  `cp data/analyses.db data/analyses.db.bak` (WAL mode, so also copy `-wal`/`-shm`
+  if present, or checkpoint first).
+- `/analyze` is **rate-limited** to 6/min and 40/day per client IP (Flask-Limiter,
+  in-memory — counts reset on `pm2 restart`). The `X-Forwarded-For` header added
+  to the nginx block above is required so the limiter sees the real client IP
+  instead of `127.0.0.1`; `ProxyFix` in the app reads it. Confirm after deploy
+  that limits key per-visitor, not globally.
 
 ## 4. Operate CLI
 

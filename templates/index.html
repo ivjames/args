@@ -343,6 +343,7 @@
   <script>
     window.__SHARED__ = {{ shared|tojson }};
     window.__PRICES__ = {{ prices|tojson }};
+    window.__EST__ = {{ est|tojson }};
   </script>
   <script>
     const btn = document.getElementById('analyze-btn');
@@ -356,6 +357,10 @@
     const mOut = document.getElementById('m-out');
     const mCost = document.getElementById('m-cost');
     const PRICES = window.__PRICES__ || { in: 0, out: 0 };
+    const EST_OVERHEAD = window.__EST__ || { single: 0, dual: 0 };
+    // Rough client-side token estimate (~4 chars/token) — no API call. The exact
+    // counts arrive with the streamed usage and replace these.
+    const estTokens = (chars) => Math.ceil(chars / 4);
 
     // ── Cost meter ──────────────────────────────────────────
     let estIn = 0, actualIn = null, estOut = 0, actualOut = null;
@@ -417,6 +422,12 @@
       shareEl.hidden = true;
       resetMeter();
 
+      // Instant, API-free input estimate: system-prompt overhead + the pasted
+      // text (plus a little framing), all at ~4 chars/token.
+      const overhead = argB ? EST_OVERHEAD.dual : EST_OVERHEAD.single;
+      estIn = overhead + estTokens(argA.length + argB.length + 24);
+      renderMeter();
+
       let outputBuffer = '';
 
       try {
@@ -450,11 +461,6 @@
               if (typeof chunk === 'object' && chunk !== null) {
                 if (chunk.error) throw new Error(chunk.error);
                 if (chunk.slug) { showShare(chunk.slug, true); continue; }
-                if (chunk.input_estimate) {
-                  estIn = chunk.input_estimate.tokens;
-                  renderMeter();
-                  continue;
-                }
                 if (chunk.usage) {
                   actualIn = chunk.usage.input_tokens;
                   actualOut = chunk.usage.output_tokens;
@@ -464,7 +470,7 @@
               }
               outputBuffer += chunk;
               outputEl.innerHTML = marked.parse(outputBuffer);
-              estOut = Math.ceil(outputBuffer.length / 4);  // rough live estimate
+              estOut = estTokens(outputBuffer.length);  // rough live estimate
               renderMeter();
             } catch (e) {
               if (e instanceof SyntaxError) continue; // partial/garbled frame

@@ -214,10 +214,19 @@ The points a responder should press, drawn from the weaknesses above — advise 
 
 Be blunt. Do not soften critiques. Do not validate the argument merely because it has emotional weight.""" + GUARDRAILS
 
+# Rough per-mode input overhead (the fixed system prompt), in tokens, for the
+# client-side estimate at ~4 chars/token. The exact input count still comes back
+# in the streamed message's usage; this is only the instant on-page estimate and
+# costs no API call.
+EST_OVERHEAD = {
+    "single": len(SYSTEM_PROMPT_SINGLE) // 4,
+    "dual": len(SYSTEM_PROMPT_DUAL) // 4,
+}
+
 
 @app.route("/")
 def index():
-    return render_template("index.html", shared=None, prices=PRICES)
+    return render_template("index.html", shared=None, prices=PRICES, est=EST_OVERHEAD)
 
 
 @app.route("/a/<slug>")
@@ -227,7 +236,7 @@ def shared(slug):
         abort(404)
     row = dict(row)
     row["usage"] = stats_for_slug(slug)
-    return render_template("index.html", shared=row, prices=PRICES)
+    return render_template("index.html", shared=row, prices=PRICES, est=EST_OVERHEAD)
 
 
 @app.route("/stats")
@@ -262,16 +271,6 @@ def analyze():
         chunks = []
         errored = False
         final = None
-
-        # Pre-flight input estimate (accurate token count incl. system prompt).
-        try:
-            est_in = client.messages.count_tokens(
-                model=MODEL, system=system, messages=messages
-            ).input_tokens
-            ci_est, _, _ = cost(est_in, 0)
-            yield f"data: {json.dumps({'input_estimate': {'tokens': est_in, 'cost': round(ci_est, 6)}})}\n\n"
-        except Exception:
-            pass
 
         try:
             with client.messages.stream(

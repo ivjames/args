@@ -21,11 +21,11 @@ PORT = int(os.environ.get("PORT", "3004"))
 MAX_ARG_CHARS = 8000  # bounds token spend per request
 MODEL = "claude-sonnet-5"
 
-# claude-sonnet-5 price per million tokens. Intro rates ($2 in / $10 out) apply
-# through 2026-08-31; standard rates are $3 / $15. Override via env after the
-# intro window ends or if pricing changes.
-PRICE_IN_PER_MTOK = float(os.environ.get("PRICE_IN_PER_MTOK", "2.0"))
-PRICE_OUT_PER_MTOK = float(os.environ.get("PRICE_OUT_PER_MTOK", "10.0"))
+# claude-sonnet-5 price per million tokens. Standard rates ($3 in / $15 out);
+# the intro rates ($2 / $10) expired 2026-08-31. Override via env if pricing
+# changes again.
+PRICE_IN_PER_MTOK = float(os.environ.get("PRICE_IN_PER_MTOK", "3.0"))
+PRICE_OUT_PER_MTOK = float(os.environ.get("PRICE_OUT_PER_MTOK", "15.0"))
 PRICES = {"in": PRICE_IN_PER_MTOK, "out": PRICE_OUT_PER_MTOK}
 
 

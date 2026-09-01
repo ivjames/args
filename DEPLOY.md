@@ -99,11 +99,11 @@ with a `KeyError`.
   streaming output as it arrives; the **actual** input/output token counts come
   from the streamed message's `usage` and replace the estimates on completion.
   Only the actuals are recorded to the DB.
-- **Pricing** is set by two env vars, defaulting to claude-sonnet-5's **intro**
-  rate (`$2` in / `$10` out per million tokens, in effect through **2026-08-31**):
-  `PRICE_IN_PER_MTOK` and `PRICE_OUT_PER_MTOK`. When the intro window ends, set
-  them to the standard `3.0` / `15.0` in the pm2 env (or `/etc/environment`) and
-  `args restart` — otherwise reported costs will understate actual spend.
+- **Pricing** is set by two env vars, defaulting to claude-sonnet-5's **standard**
+  rate (`$3` in / `$15` out per million tokens): `PRICE_IN_PER_MTOK` and
+  `PRICE_OUT_PER_MTOK`. (The intro rate of `$2` / `$10` expired 2026-08-31.) If
+  pricing changes again, set these in the pm2 env (or `/etc/environment`) and
+  `args restart`.
 - `GET /stats` returns aggregate JSON (analysis count, total tokens, total cost,
   and a per-mode breakdown). It's **unauthenticated** — if you don't want site
   usage/cost public, restrict it in nginx (e.g. `location = /stats { deny all; }`
